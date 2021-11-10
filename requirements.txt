@@ -1,0 +1,6 @@
+opencv-python
+scipy
+matplotlib
+Pillow
+imgaug
+keras==2.6.*
