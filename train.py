@@ -15,9 +15,9 @@ import numpy as np
 from core.centernet import PostProcessing
 from utils.visualize import visualize_training_results, visualize_training_results_step
 import datetime
-from data.dataloader import DetectionDataset, DataLoader
+from data.dataloader_mot import DetectionDataset, DataLoader
 from core.models.mobilenet import MobileNetV2
-from core.models.dla_34 import DLA_MODEL
+# from core.models.dla_34 import DLA_MODEL
 from core.models.resnetFPN import Res50FPN
 from utils.show_traing_val_image import show_traing_val_image
 
@@ -61,15 +61,16 @@ if __name__ == '__main__':
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3,
                                                                  decay_steps=Config.learning_rate_decay_step,
                                                                  decay_rate=0.96)
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
 
     # metrics
     lr_metric = tf.metrics.Mean('learning_rate', dtype=tf.float32)
     total_loss_metric = tf.metrics.Mean('total_loss', dtype=tf.float32)
     heatmap_loss_metric = tf.metrics.Mean('heatmap_loss', dtype=tf.float32)
     wh_loss_metric = tf.metrics.Mean('wh_loss', dtype=tf.float32)    
-    offset_loss_metric = tf.metrics.Mean('offset_loss', dtype=tf.float32)    
+    offset_loss_metric = tf.metrics.Mean('offset_loss', dtype=tf.float32)
+    tid_loss_metric = tf.metrics.Mean('tid_loss', dtype=tf.float32)
     val_loss_metric = tf.metrics.Mean('val_loss', dtype=tf.float32)
     
     post_process = PostProcessing()
@@ -78,7 +79,9 @@ if __name__ == '__main__':
         with tf.GradientTape() as tape:
             pred = model(batch_images, True)
             total_loss, heatmap_loss, wh_loss, offset_loss, \
+            tid_loss, \
             gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, \
+            gt_tid, gt_tid_mask \
             = post_process.training_procedure(batch_labels=batch_labels, pred=pred)
         gradients = tape.gradient(target=total_loss, sources=model.trainable_variables)
         optimizer.apply_gradients(grads_and_vars=zip(gradients, model.trainable_variables))
@@ -89,17 +92,20 @@ if __name__ == '__main__':
         heatmap_loss_metric.update_state(values=heatmap_loss)
         wh_loss_metric.update_state(values=wh_loss)
         offset_loss_metric.update_state(values=offset_loss)
-        return pred, gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices
+        tid_loss_metric.update_state(values=tid_loss)
+        return pred, gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, gt_tid, gt_tid_mask
 
     def val_step(model, batch_images, batch_labels, current_train_step, epoch):  
         pred = model(batch_images, False)
         total_loss, heatmap_loss, wh_loss, offset_loss, \
+        tid_loss, \
         gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, \
+        gt_tid, gt_tid_mask\
         = post_process.training_procedure(batch_labels=batch_labels, pred=pred)
         
         # update metric
         val_loss_metric.update_state(values=total_loss)
-        return pred, gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices
+        return pred, gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, gt_tid, gt_tid_mask
     
     #%%
     for epoch in range(load_weights_from_epoch + 1, Config.epochs):
@@ -110,14 +116,14 @@ if __name__ == '__main__':
             
             # load data 
             step_start_time = time.time()
-            images, labels = data_loader.read_batch_data(batch_data, augment = False)
+            images, labels = data_loader.read_batch_data(batch_data, augment= False)
             step_end_time = time.time()
             load_image_time = step_end_time - step_start_time
             # print("load image time_cost: {:.3f}s".format(load_image_time))
                      
             # train step
             step_start_time = time.time()
-            pred, gt_heatmap, _, _, _, _ = train_step(centernet, images, labels, current_train_step, show_data=False) 
+            pred, gt_heatmap, _, _, _, gt_indices, gt_tid, gt_tid_mask = train_step(centernet, images, labels, current_train_step, show_data=False)
             step_end_time = time.time()
             training_image_time = step_end_time - step_start_time
             # print("training time_cost: {:.3f}s".format(training_image_time))
@@ -125,8 +131,8 @@ if __name__ == '__main__':
             # validation part
             if (step+1) % Config.val_images_during_training_step_save_frequency == 0:             
                 for val_batch_data in val_data:
-                    val_images, val_labels = data_loader.read_batch_data(val_batch_data, augment=False)  
-                    val_pred, val_gt_heatmap, _, _, _, _ = val_step(centernet, val_images, val_labels, current_train_step, epoch)
+                    val_images, val_labels = data_loader.read_batch_data(val_batch_data, augment= False)  
+                    val_pred, val_gt_heatmap, _, _, _, _, val_tid, val_tid_mask = val_step(centernet, val_images, val_labels, current_train_step, epoch)
                     
                     # show gt_heatmap and pre_heatpmap 
                     show_traing_val_image(val_images, val_gt_heatmap, val_pred, training = False)
@@ -142,7 +148,8 @@ if __name__ == '__main__':
                 tf.summary.scalar('summary/total_loss', total_loss_metric.result(), step = current_train_step)
                 tf.summary.scalar('summary/heatmap_loss', heatmap_loss_metric.result(), step = current_train_step)
                 tf.summary.scalar('summary/wh_loss', wh_loss_metric.result(), step = current_train_step)
-                tf.summary.scalar('summary/offset_loss', offset_loss_metric.result(), step = current_train_step)            
+                tf.summary.scalar('summary/offset_loss', offset_loss_metric.result(), step = current_train_step)
+                tf.summary.scalar('summary/tid_loss', tid_loss_metric.result(), step = current_train_step)
                 tf.summary.scalar('summary/lr', lr_metric.result(), step = current_train_step)
             
             # save test image and model in step during training
@@ -160,16 +167,18 @@ if __name__ == '__main__':
                                                                                                             load_image_time + training_image_time))
             
 
-            print("Total loss: %s, heatmap: %s, wh: %s, offset: %s" %(str(np.round(total_loss_metric.result()  ,   3)),
-                                                                      str(np.round(heatmap_loss_metric.result(),   3)),
-                                                                      str(np.round(wh_loss_metric.result()     ,   3)),
-                                                                      str(np.round(offset_loss_metric.result() ,   3))))
+            print("Total loss: %s, heatmap: %s, wh: %s, offset: %s, tid: %s" %(str(np.round(total_loss_metric.result()  ,   3)),
+                                                                               str(np.round(heatmap_loss_metric.result(),   3)),
+                                                                               str(np.round(wh_loss_metric.result()     ,   3)),
+                                                                               str(np.round(offset_loss_metric.result() ,   3)),
+                                                                               str(np.round(tid_loss_metric.result() ,      3))))
 
             lr_metric.reset_states()
             total_loss_metric.reset_states()
             heatmap_loss_metric.reset_states()
             wh_loss_metric.reset_states()
             offset_loss_metric.reset_states()
+            tid_loss_metric.reset_states()
             
             # show gt_heatmap and pre_heatpmap
             show_traing_val_image(images, gt_heatmap, pred, training = True)

@@ -110,7 +110,13 @@ def Res50FPN(plot_model=True):
     wh = tf.keras.layers.ReLU(name='wh_relu')(wh)
     wh = tf.keras.layers.Conv2D(filters=Config.heads["wh"], kernel_size=(1, 1), strides=1, padding="valid", name='wh_conv2')(wh)
 
-    outputs = tf.keras.layers.concatenate(inputs=[heatmap, reg, wh], axis=-1)
+    tid_embed = tf.keras.layers.Conv2D(filters=Config.head_conv["mobilenetv2"], kernel_size=(3, 3), strides=1, padding="same", use_bias=False, name='tid_conv1')(p2_output)
+    tid_embed = tf.keras.layers.BatchNormalization(name='tid_bn')(tid_embed)
+    tid_embed = tf.keras.layers.ReLU(name='tid_relu')(tid_embed)
+    tid = tf.keras.layers.Conv2D(filters=Config.heads["tid"], kernel_size=(1, 1), strides=1, padding="valid", name='tid_conv2')(tid_embed)
+    tid = tf.keras.layers.Softmax()(tid)
+
+    outputs = tf.keras.layers.concatenate(inputs=[heatmap, reg, wh, tid, tid_embed], axis=-1)
     model = tf.keras.models.Model(backbone.inputs, outputs=outputs)
     model.summary()
     

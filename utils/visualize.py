@@ -25,6 +25,7 @@ def visualize_training_results_step(pictures, model, epoch, step):
     :param epoch:
     :return:
     """
+    pictures.sort()
     index = 0
     for picture in pictures:
         index += 1
