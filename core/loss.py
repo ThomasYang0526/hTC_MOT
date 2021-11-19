@@ -79,7 +79,6 @@ class RegL1Loss_joint_loc:
         y_pred = RegL1Loss_joint_loc.gather_feat(y_pred, index)
         mask = tf.tile(tf.expand_dims(mask, axis=-1), tf.constant([1, 1, 2*Config.num_joints], dtype=tf.int32))
         loss = tf.math.reduce_sum(tf.abs(y_true * mask - y_pred * mask))
-        # print(y_pred[0])
         reg_loss = loss / (tf.math.reduce_sum(mask) + 1e-4)
         return reg_loss
 
@@ -92,10 +91,11 @@ class RegL1Loss_joint_loc:
 
 class CELoss():
     def __call__(self, y_true, y_pred, mask, index, *args, **kwargs):
-        y_pred = CELoss.gather_feat(y_pred, index)
+        # y_pred = CELoss.gather_feat(y_pred, index)
         # y_pred = tf.clip_by_value(y_pred, 1e-8, 1. - 1e-8)
         mask = tf.tile(tf.expand_dims(mask, axis=-1), tf.constant([1, 1, Config.tid_classes], dtype=tf.int32))
-        # print(mask[])
+        y_pred = tf.squeeze(y_pred, axis = 2)
+        # print(mask.shape, y_true.shape, y_pred.shape)
         ce_loss = tf.math.reduce_sum((y_true * mask - y_pred * mask)**2)
         # ce_loss = loss / (tf.math.reduce_sum(mask) + 1e-4)
         # cce = tf.keras.losses.CategoricalCrossentropy()
@@ -103,12 +103,12 @@ class CELoss():
         # ce_loss = cce(y_true,  y_pred).numpy()
         return ce_loss
 
-    @staticmethod
-    def gather_feat(feat, idx):
-        feat = tf.reshape(feat, shape=(feat.shape[0], -1, feat.shape[-1]))
-        idx = tf.cast(idx, dtype=tf.int32)
-        feat = tf.gather(params=feat, indices=idx, batch_dims=1)
-        return feat
+    # @staticmethod
+    # def gather_feat(feat, idx):
+    #     feat = tf.reshape(feat, shape=(feat.shape[0], -1, feat.shape[-1]))
+    #     idx = tf.cast(idx, dtype=tf.int32)
+    #     feat = tf.gather(params=feat, indices=idx, batch_dims=1)
+    #     return feat
 
 class CombinedLoss:
     def __init__(self):
@@ -119,11 +119,11 @@ class CombinedLoss:
 
     def __call__(self, y_pred, heatmap_true, reg_true, wh_true, reg_mask, indices, tid_true, tid_mask, *args, **kwargs):
         # print('*****************', y_pred.shape)
-        heatmap, reg, wh, tid, embed = tf.split(value=y_pred, num_or_size_splits=[Config.num_classes, 2, 2, Config.tid_classes, 256], axis=-1)
+        heatmap, reg, wh, embed = tf.split(value=y_pred[0], num_or_size_splits=[Config.num_classes, 2, 2, 256], axis=-1)
         heatmap_loss = self.heatmap_loss_object(y_true=heatmap_true, y_pred=heatmap)
         off_loss = self.reg_loss_object(y_true=reg_true, y_pred=reg, mask=reg_mask, index=indices)
         wh_loss  = self.wh_loss_object(y_true=wh_true, y_pred=wh, mask=reg_mask, index=indices)        
-        tid_loss  = self.tid_loss_object(y_true=tid_true, y_pred=tid, mask=tid_mask, index=indices)
+        tid_loss  = self.tid_loss_object(y_true=tid_true, y_pred=y_pred[1], mask=tid_mask, index=indices)
 
         total_loss = (Config.hm_weight * heatmap_loss + 
                       Config.off_weight * off_loss + 
@@ -136,7 +136,8 @@ if __name__ == '__main__' :
     tid_loss_object = CELoss()
     # heatmap, reg, wh, tid = tf.split(value=pred, num_or_size_splits=[Config.num_classes, 2, 2, Config.tid_classes], axis=-1)
     # loss = tid_loss_object(y_true=gt_tid, y_pred=tid, mask=gt_tid_mask, index=gt_indices)
-    loss = tid_loss_object(y_true=np.ones((1,150,Config.tid_classes)), y_pred=np.ones((1,104,104,Config.tid_classes)), mask=np.ones((1, 150)), index=np.ones((1, 150)))
+    # loss = tid_loss_object(y_true=np.ones((1,150,Config.tid_classes)), y_pred=np.ones((1,104,104,Config.tid_classes)), mask=np.ones((1, 150)), index=np.ones((1, 150)))
+    loss = tid_loss_object(y_true=np.ones((1,150,Config.tid_classes)), y_pred=np.ones((1,150,Config.tid_classes)), mask=np.ones((1, 150)), index=np.ones((1, 150)))
     print(loss)
 
 

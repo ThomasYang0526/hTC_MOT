@@ -70,7 +70,7 @@ class Decoder:
         self.score_threshold = Config.score_threshold
 
     def __call__(self, pred, *args, **kwargs):
-        heatmap, reg, wh, tid, embed = tf.split(value=pred, num_or_size_splits=[Config.num_classes, 2, 2, Config.tid_classes, 256], axis=-1)
+        heatmap, reg, wh, embed = tf.split(value=pred[0], num_or_size_splits=[Config.num_classes, 2, 2, 256], axis=-1)
         batch_size = heatmap.shape[0]
         heatmap = Decoder.__nms(heatmap)        
         scores, inds, clses, ys, xs = Decoder.__topK(scores=heatmap, K=self.K)
@@ -90,7 +90,7 @@ class Decoder:
                                    xs + wh[..., 0:1] / 2,
                                    ys + wh[..., 1:2] / 2], axis=2)
                      
-        tid = RegL1Loss.gather_feat(feat=tid, idx=inds)
+        tid = RegL1Loss.gather_feat(feat=pred[1], idx=inds)
         tid = tf.math.argmax(tid, axis = 2)
         tid = tf.expand_dims(tid, axis=-1)
         
@@ -122,7 +122,7 @@ class Decoder:
         return a[mask].reshape(-1, a.shape[-1])
 
     @staticmethod
-    def __nms(heatmap, pool_size=3):
+    def __nms(heatmap, pool_size=7):
         hmax = tf.keras.layers.MaxPool2D(pool_size=pool_size, strides=1, padding="same")(heatmap)
         keep = tf.cast(tf.equal(heatmap, hmax), tf.float32)
         return hmax * keep

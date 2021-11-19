@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Nov 10 19:10:29 2021
+Created on Mon Nov 15 18:32:21 2021
 
 @author: thomas_yang
 """
@@ -9,8 +9,8 @@ Created on Wed Nov 10 19:10:29 2021
 import os
 import cv2
 
-save_txt_dir = '/home/thomas_yang/ML/hTC_MOT/txt_file/pose_detection/cuhk.txt'
-load_txt_dir = '/home/thomas_yang/ML/datasets/CUHK/CUHK-SYSU/labels_with_ids/'
+save_txt_dir = '/home/thomas_yang/ML/hTC_MOT/txt_file/pose_detection/caltech.txt'
+load_txt_dir = '/home/thomas_yang/ML/datasets/Caltech/caltech/labels_with_ids/'
 txt_files = [load_txt_dir + i for i in os.listdir(load_txt_dir)]
 txt_files.sort()
 
@@ -38,11 +38,7 @@ for idx, txt_fname in enumerate(txt_files):
             xmax = xcen + w/2
             ymax = ycen + h/2
             # label_str = '{:.2f} {:.2f} {:.2f} {:.2f} 0 {:d}'.format(xmin, ymin, xmax, ymax, tid_curr)
-            # label_str = '{:.2f} {:.2f} {:.2f} {:.2f} 0 -1'.format(xmin, ymin, xmax, ymax)
-            if tid_curr == -1:
-                label_str = '{:.2f} {:.2f} {:.2f} {:.2f} 0 {:d}'.format(xmin, ymin, xmax, ymax, tid_curr)
-            else:
-                label_str = '{:.2f} {:.2f} {:.2f} {:.2f} 0 {:d}'.format(xmin, ymin, xmax, ymax, tid_curr+1451) #517 is MOT total IDs
+            label_str = '{:.2f} {:.2f} {:.2f} {:.2f} 0 -1'.format(xmin, ymin, xmax, ymax)
             img_info.append(label_str)
     img_info = ' '.join(img_info)+'\n'
     imgs_info.append(img_info)

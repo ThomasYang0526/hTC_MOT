@@ -277,6 +277,44 @@ class GT:
                 
         return hm, reg, wh, reg_mask, ind, tid, tid_mask
 
+class reID_idx_GT:
+    def __init__(self, batch_labels):
+        self.downsampling_ratio = Config.downsampling_ratio # efficientdet: 8, others: 4
+        self.features_shape = np.array(Config.get_image_size(), dtype=np.int32) // self.downsampling_ratio # efficientnet: 64*64
+        self.batch_labels = batch_labels
+        self.batch_size = batch_labels.shape[0]
+    
+    def get_gt_values(self):
+        gt_indices  = np.zeros(shape=(self.batch_size, Config.max_boxes_per_image), dtype=np.float32)             
+        for i, label in enumerate(self.batch_labels):
+            label = label[label[:, 4] != -1]            
+            # object class part
+            label_class = label[label[:, 4] == 0]            
+            ind = self.__decode_label(label_class)
+            gt_indices[i, :] = ind
+            
+        return gt_indices
+
+    def __decode_label(self, label):
+        ind = np.zeros(shape=(Config.max_boxes_per_image), dtype=np.float32)
+        
+        for j, item in enumerate(label): #原始座標
+            item_down = item[:4] / self.downsampling_ratio #原始座標/縮小比例(8)
+            xmin, ymin, xmax, ymax = item_down            
+            xmin = max(0, xmin)
+            ymin = max(0, ymin)
+            xmax = min(self.features_shape[1]-1, xmax)
+            ymax = min(self.features_shape[0]-1, ymax)            
+
+            ctr_x, ctr_y = (xmin + xmax) / 2, (ymin + ymax) / 2
+            center_point = np.array([ctr_x, ctr_y], dtype=np.float32)
+            center_point_int = center_point.astype(np.int32)            
+            
+            if item[5] != -1:
+                ind[j] = center_point_int[1] * self.features_shape[1] + center_point_int[0]
+            
+        return ind
+
 if __name__ == '__main__':
     import collections
     tids_dict = collections.defaultdict(int)
@@ -298,6 +336,9 @@ if __name__ == '__main__':
         gt = GT(labels)
         gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, gt_tid, gt_tid_mask = gt.get_gt_values()
 
+        gt_reid = reID_idx_GT(labels)
+        reid_idx = gt_reid.get_gt_values()
+
         B, H, W, C = gt_heatmap.shape
         indice = gt_indices[gt_reg_mask==1]
         mask_gt_wh = gt_wh[gt_reg_mask==1]
@@ -316,10 +357,17 @@ if __name__ == '__main__':
                 ymax = int(mask_gt_wh[i,1]*4/2+topk_ys[i]*4)
                 cv2.rectangle(img_rgb, (xmin, ymin), (xmax, ymax), (0, 255, 255), 1)            
             cv2.putText(img_rgb, str(tid), (xmin, ymin), 1, 1, (0, 0, 255))
-        
+
+
+        topk_xs = (reid_idx % W).astype(np.int)
+        topk_ys = (reid_idx // W).astype(np.int)
+        for i in range(topk_xs.shape[0]):            
+            cv2.circle(img_rgb, (topk_xs[i]*4, topk_ys[i]*4), 2, (0, 0, 255), -1)
+            tid = np.argmax(tids[i])
+            
         cv2.imshow('img', img_rgb)
         cv2.imshow('gt_heatmap', cv2.resize(gt_heatmap[0], (416, 416)))
-        if cv2.waitKey(1) == ord('q'):
+        if cv2.waitKey(0) == ord('q'):
             break        
 
     cv2.destroyAllWindows()

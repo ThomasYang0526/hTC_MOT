@@ -15,10 +15,10 @@ import numpy as np
 from core.centernet import PostProcessing
 from utils.visualize import visualize_training_results, visualize_training_results_step
 import datetime
-from data.dataloader_mot import DetectionDataset, DataLoader
+from data.dataloader_mot import DetectionDataset, DataLoader, reID_idx_GT
 from core.models.mobilenet import MobileNetV2
 # from core.models.dla_34 import DLA_MODEL
-from core.models.resnetFPN import Res50FPN
+from core.models.resnetFPN import Res50FPN, Res50FPN_reID
 from utils.show_traing_val_image import show_traing_val_image
 
 if __name__ == '__main__':
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # centernet = MobileNetV2(training=True)
     # centernet = MobileNetV2()
     # centernet = DLA_MODEL()
-    centernet = Res50FPN()
+    centernet = Res50FPN_reID()
     
     # load pre-train weight
     load_weights_from_epoch = Config.load_weights_from_epoch
@@ -58,7 +58,7 @@ if __name__ == '__main__':
    
 
     # optimizer
-    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=1e-3,
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=6e-4,
                                                                  decay_steps=Config.learning_rate_decay_step,
                                                                  decay_rate=0.96)
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
@@ -77,12 +77,17 @@ if __name__ == '__main__':
     
     def train_step(model, batch_images, batch_labels, current_train_step, show_data=False):
         with tf.GradientTape() as tape:
-            pred = model(batch_images, True)
+            reID_idx_obj = reID_idx_GT(batch_labels)
+            reID_xy = reID_idx_obj.get_gt_values()  
+            # print(reID_xy.shape)
+            
+            pred = model([batch_images, reID_xy], True)
             total_loss, heatmap_loss, wh_loss, offset_loss, \
             tid_loss, \
             gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, \
             gt_tid, gt_tid_mask \
             = post_process.training_procedure(batch_labels=batch_labels, pred=pred)
+            
         gradients = tape.gradient(target=total_loss, sources=model.trainable_variables)
         optimizer.apply_gradients(grads_and_vars=zip(gradients, model.trainable_variables))
 
@@ -96,7 +101,10 @@ if __name__ == '__main__':
         return pred, gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, gt_tid, gt_tid_mask
 
     def val_step(model, batch_images, batch_labels, current_train_step, epoch):  
-        pred = model(batch_images, False)
+        reID_idx_obj = reID_idx_GT(batch_labels)
+        reID_xy = reID_idx_obj.get_gt_values()        
+        
+        pred = model([batch_images, reID_xy], False)
         total_loss, heatmap_loss, wh_loss, offset_loss, \
         tid_loss, \
         gt_heatmap, gt_reg, gt_wh, gt_reg_mask, gt_indices, \
@@ -135,7 +143,7 @@ if __name__ == '__main__':
                     val_pred, val_gt_heatmap, _, _, _, _, val_tid, val_tid_mask = val_step(centernet, val_images, val_labels, current_train_step, epoch)
                     
                     # show gt_heatmap and pre_heatpmap 
-                    show_traing_val_image(val_images, val_gt_heatmap, val_pred, training = False)
+                    show_traing_val_image(val_images, val_gt_heatmap, val_pred[0], training = False)
                     print('val_loss:', val_loss_metric.result().numpy())
             
                 with val_summary_writer.as_default():
@@ -181,7 +189,7 @@ if __name__ == '__main__':
             tid_loss_metric.reset_states()
             
             # show gt_heatmap and pre_heatpmap
-            show_traing_val_image(images, gt_heatmap, pred, training = True)
+            show_traing_val_image(images, gt_heatmap, pred[0], training = True)
 
         # save weight part
         if epoch % Config.save_frequency == 0:

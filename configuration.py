@@ -7,13 +7,13 @@ class Config:
     batch_size = 8
     batch_cumulate = 8
     learning_rate_decay_epochs = 10
-    learning_rate_decay_step = 8000
+    learning_rate_decay_step = 9500
 
     # save model
     save_frequency = 1
     save_model_dir = "saved_model/"
     load_weights_before_training = True
-    load_weights_from_epoch = 84
+    load_weights_from_epoch = 29
 
     # test image
     test_single_image_dir = "./test_pictures/street.jpg"
@@ -46,7 +46,7 @@ class Config:
 
     # dataset
     num_classes = 1
-    tid_classes = 1451
+    tid_classes = 13385
     
     pascal_voc_root = "./data/datasets/VOCdevkit/VOC2012/"
     pascal_voc_images = pascal_voc_root + "JPEGImages"
@@ -56,13 +56,16 @@ class Config:
     # train txt file
     train_txt_item = os.listdir('/home/thomas_yang/ML/datasets/crowdhuman/labels_with_ids/val/')
     # train_txt_item = ['prw.txt', 'mot16_04.txt', 'mot16_05.txt', 'mot16_09.txt', 'mot16_10.txt', 'mot16_11.txt', 'mot16_13.txt']
-    # train_txt_item = ['vive_land_autolabel_vote_1_tid.txt']
+    # train_txt_item = ['mot16_02.txt', 'mot16_04.txt', 'mot16_05.txt', 'mot16_09.txt', 'mot16_10.txt', 'mot16_11.txt', 'mot16_13.txt', 'prw.txt', 
+                      # 'ethz_01.txt','ethz_02.txt','ethz_03.txt','ethz_07.txt']
     train_txt_item = ['cuhk.txt',
-                      'prw.txt', 
-                      'ethz_01.txt','ethz_02.txt','ethz_03.txt','ethz_07.txt',
-                      'mot16_02.txt', 'mot16_04.txt', 'mot16_05.txt', 'mot16_09.txt', 'mot16_10.txt', 'mot16_11.txt', 'mot16_13.txt',
-                      'crowdhuman_train.txt', 'crowdhuman_val.txt',
-                      'vive_land_autolabel_vote_1_tid.txt','vive_land_autolabel_vote_2_tid.txt','vive_land_autolabel_vote_3_tid.txt']
+                       'prw.txt', 
+                       'ethz_01.txt','ethz_02.txt','ethz_03.txt','ethz_07.txt',
+                       'mot16_02.txt', 'mot16_04.txt', 'mot16_05.txt', 'mot16_09.txt', 'mot16_10.txt', 'mot16_11.txt', 'mot16_13.txt',
+                       'crowdhuman_train.txt', 'crowdhuman_val.txt',
+                       'caltech.txt',
+                       'citypersons_train.txt', 'citypersons_val.txt', 
+                       'vive_land_autolabel_vote_1_tid.txt','vive_land_autolabel_vote_2_tid.txt','vive_land_autolabel_vote_3_tid.txt']
     
     txt_file_dir = [txt_file_path + i for i in train_txt_item]
     
@@ -100,11 +103,11 @@ class Config:
     hm_weight = 1.0 
     wh_weight = 0.2 
     off_weight = 1.0
-    tid_weight = 2.0
+    tid_weight = 0.1
     joint_weight = 1.0 
     joint_loc_weight = 1.0
 
-    score_threshold = 0.3
+    score_threshold = 0.2
     joint_threshold = 0.1
     
     skeleton = [[0, 1], [1, 3], [5, 7], [7,  9], [11, 13], [13, 15],

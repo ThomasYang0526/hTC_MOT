@@ -14,7 +14,7 @@ from configuration import Config
 from core.centernet import CenterNet, PostProcessing
 from data.dataloader import DataLoader
 from core.models.mobilenet import MobileNetV2
-from core.models.resnetFPN import Res50FPN
+from core.models.resnetFPN import Res50FPN, Res50FPN_reID
 from core.centernet import Decoder
 from utils.drawBboxJointLocation import draw_boxes_ReID_on_image
 # from utils.drawBboxJointLocation import draw_boxes_joint_on_image
@@ -28,7 +28,7 @@ def test_single_picture(picture_dir, model):
     image = DataLoader.image_preprocess(is_training=False, image_dir=picture_dir)
     image = tf.expand_dims(input=image, axis=0)
 
-    outputs = model(image, training=False)
+    outputs = model([image, np.zeros((1, Config.max_boxes_per_image, 1))], training=False)
     post_process = PostProcessing()
     
     boxes, scores, classes, tids, embeds = post_process.testing_procedure(outputs, [image_array.shape[0], image_array.shape[1]])
@@ -41,7 +41,7 @@ def test_single_picture(picture_dir, model):
 #%%
 if __name__ == '__main__':
     
-    centernet = Res50FPN()    
+    centernet = Res50FPN_reID()    
     load_weights_from_epoch = Config.load_weights_from_epoch    
     centernet.load_weights(filepath=Config.save_model_dir+"epoch-{}".format(load_weights_from_epoch))
     
@@ -52,6 +52,7 @@ if __name__ == '__main__':
     # from core.centernet import CenterNet, PostProcessing
     # from data.dataloader import DataLoader
     from configuration import Config
+    import collections
     # from deep_sort import DeepSort
     # deepsort = DeepSort()
 
@@ -73,25 +74,27 @@ if __name__ == '__main__':
     video_6 = 'vlc-record-2021-04-22-16h31m33s-rtsp___192.168.102.3_8554_fhd-.mp4'
     video_7 = 'vlc-record-2021-04-22-17h02m58s-rtsp___192.168.102.3_8554_fhd-.mp4'
     
-    cap = cv2.VideoCapture(os.path.join(video_path, video_2))
+    cap = cv2.VideoCapture(os.path.join(video_path, video_5))
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    half_point = length//4.5*1
+    half_point = length//7*1
     cap.set(cv2.CAP_PROP_POS_FRAMES, half_point)
     
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter('bbox_joint_01.avi', fourcc, 20.0, (960,  540))
+    out = cv2.VideoWriter('bbox_joint_01.avi', fourcc, 20.0, (1492,  540))
     
-    embed_0 = []
-    embed_1 = []
-    count = 0
+    embed_0 = np.zeros((540,256), dtype=np.float32)
+    embed_1 = np.zeros((540,256), dtype=np.float32)
+    inter = (np.ones((540,20,3))*(0,128,128)).astype(np.uint8)
+    count = 0          
+    xy0 = np.zeros((1,2))
+    xy1 = np.zeros((1,2))
     while cap.isOpened():
         ret, frame = cap.read()
         # if frame is read correctly ret is True
         if not ret:
             print("Can't receive frame (stream end?). Exiting ...")
             break
-        
-        count += 1        
+                       
         image_array0 = np.copy(frame)
         # image_array1 = np.copy(frame)
         
@@ -100,53 +103,59 @@ if __name__ == '__main__':
         image = tf.expand_dims(input=image, axis=0)        
 
         step_start_time = time.time()
-        outputs = centernet(image, training=False)
+        outputs = centernet([image, np.zeros((1, Config.max_boxes_per_image, 1))], training=False)
 
         step_end_time = time.time()
         print("invoke time_cost: {:.3f}s".format(step_end_time - step_start_time))  
     
         post_process = PostProcessing()
-        boxes, scores, classes, tids, embeds = post_process.testing_procedure(outputs, [frame.shape[0], frame.shape[1]])        
-        
-        tmp = []
-        cost = np.zeros((2, 2))
-        for embed_idx, embed in enumerate(embeds):
-            embed = np.expand_dims(embed, 1).transpose()
-            embed = cv2.resize(embed, (256, 4), interpolation = cv2.INTER_NEAREST)
-            
-            if embed_0 == []:
-                embed_0 = embed
-                continue
-            if embed_0.shape[0]!=1 and embed_1 == []:
-                embed_1 = embed
-                continue
-            
-            diff0 = np.sum((embed - embed_0[-1])**2)
-            diff1 = np.sum((embed - embed_1[-1])**2)
-            
-            cost[0, embed_idx] = diff0
-            cost[1, embed_idx] = diff1
-            
-            tmp.append(embed)
-
-        if count == 1:
-            continue
-        
-        row_ind, col_ind = linear_sum_assignment(cost)            
-        embed_0 = cv2.vconcat([embed_0, tmp[row_ind[0]]])
-        embed_1 = cv2.vconcat([embed_1, tmp[row_ind[1]]])
-        
-        cv2.imshow("embed_idx %d" %0, embed_0)
-        cv2.imshow("embed_idx %d" %1, embed_1)
-        
-        print(scores, classes)
-        
+        boxes, scores, classes, tids, embeds = post_process.testing_procedure(outputs, [frame.shape[0], frame.shape[1]])  
         image_with_boxes_joint_location_m = draw_boxes_ReID_on_image(image_array0, boxes.astype(np.int), scores, classes, tids)
+                
+        argidx = np.argsort(boxes[:, 0])
+        # print(boxes, boxes.shape)
+        # boxes  = boxes[argidx]
+        # boxes_ = boxes[-2:,:]
+        
+        # xy0 = (boxes_[0][2:] + boxes_[0][0:2])//2
+        # xy1 = (boxes_[1][2:] + boxes_[1][0:2])//2
+
+        xy0 = (boxes[argidx[-2]][2:] + boxes[argidx[-2]][0:2])//2
+        xy1 = (boxes[argidx[-1]][2:] + boxes[argidx[-1]][0:2])//2
+                  
+        diff0 = np.copy(xy0[0])
+        diff1 = np.copy(xy1[0])
+        if diff0 < diff1:
+            embed_0[count] = embeds[argidx[-2]].transpose()
+            embed_1[count] = embeds[argidx[-1]].transpose()
+            cv2.circle(img=image_array0, center=(int(xy0[0]), int(xy0[1])), radius=5, color=(0, 0, 255), thickness=-1)
+            cv2.circle(img=image_array0, center=(int(xy1[0]), int(xy1[1])), radius=5, color=(0, 255, 0), thickness=-1)
+        else :
+            embed_0[count] = embeds[argidx[-1]].transpose()
+            embed_1[count] = embeds[argidx[-2]].transpose()
+            cv2.circle(img=image_array0, center=(int(xy1[0]), int(xy1[1])), radius=5, color=(0, 0, 255), thickness=-1)
+            cv2.circle(img=image_array0, center=(int(xy0[0]), int(xy0[1])), radius=5, color=(0, 255, 0), thickness=-1)        
+
+        
+        # cv2.imshow("embed_idx %d" %0, embed_0)
+        # cv2.imshow("embed_idx %d" %1, embed_1)        
+        
+        print(scores, classes, count, diff0, diff1)
+        count += 1 
+        
+
         image_with_boxes_joint_location_m = cv2.resize(image_with_boxes_joint_location_m, (960, 540))
+        image_with_boxes_joint_location_m = cv2.hconcat([image_with_boxes_joint_location_m, 
+                                                         cv2.cvtColor((embed_0/5*255).astype(np.uint8), cv2.COLOR_GRAY2BGR),
+                                                         inter,
+                                                         cv2.cvtColor((embed_1/5*255).astype(np.uint8), cv2.COLOR_GRAY2BGR)])
         
         out.write(image_with_boxes_joint_location_m)
         cv2.imshow("detect result", image_with_boxes_joint_location_m)
-        if cv2.waitKey(0) == ord('q'):
+        if cv2.waitKey(1) == ord('q'):
+            break
+        
+        if count == 420:
             break
         
     cap.release()
@@ -167,6 +176,67 @@ if __name__ == '__main__':
     #     if cv2.waitKey(0) == ord('q'):                
     #         break
     # cv2.destroyAllWindows()
+
+#%%
+    import matplotlib.pyplot as plt
+    diff_00 = []
+    diff_01 = []
+    diff_10 = []
+    diff_11 = []
+    # for i in range(2, embed_0.shape[0]):
+    for i in range(2, 419):
+        diff_00.append(np.sqrt(np.sum((embed_0[i, :] - embed_0[i-1, :])**2))/256)
+        diff_01.append(np.sqrt(np.sum((embed_0[i, :] - embed_1[i-1, :])**2))/256)
+        diff_10.append(np.sqrt(np.sum((embed_1[i, :] - embed_0[i-1, :])**2))/256)
+        diff_11.append(np.sqrt(np.sum((embed_1[i, :] - embed_1[i-1, :])**2))/256)
+        
+    diff_00 = np.array(diff_00)
+    diff_01 = np.array(diff_01)
+    diff_10 = np.array(diff_10)
+    diff_11 = np.array(diff_11)
+    
+    x = np.arange(0, len(diff_00))
+    plt.figure(0)
+    plt.plot(x, diff_00, marker="o")
+    plt.plot(x, diff_10, marker="o")
+    plt.xlabel("Time Frame")
+    plt.ylabel("Difference")
+    # plt.title("CDF for discrete distribution")
+    plt.legend()
+    plt.show()
+
+    plt.figure(1)
+    plt.plot(x, diff_01, marker="o")
+    plt.plot(x, diff_11, marker="o")
+    plt.xlabel("Time Frame")
+    plt.ylabel("Difference")
+    # plt.title("CDF for discrete distribution")
+    plt.legend()
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
