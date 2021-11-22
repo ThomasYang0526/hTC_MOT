@@ -119,7 +119,7 @@ class CombinedLoss:
 
     def __call__(self, y_pred, heatmap_true, reg_true, wh_true, reg_mask, indices, tid_true, tid_mask, *args, **kwargs):
         # print('*****************', y_pred.shape)
-        heatmap, reg, wh, embed = tf.split(value=y_pred[0], num_or_size_splits=[Config.num_classes, 2, 2, 256], axis=-1)
+        heatmap, reg, wh, embed = tf.split(value=y_pred[0], num_or_size_splits=[Config.num_classes, 2, 2, 512], axis=-1)
         heatmap_loss = self.heatmap_loss_object(y_true=heatmap_true, y_pred=heatmap)
         off_loss = self.reg_loss_object(y_true=reg_true, y_pred=reg, mask=reg_mask, index=indices)
         wh_loss  = self.wh_loss_object(y_true=wh_true, y_pred=wh, mask=reg_mask, index=indices)        

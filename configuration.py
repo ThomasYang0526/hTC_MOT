@@ -4,7 +4,7 @@ txt_file_path = './txt_file/pose_detection/'
 
 class Config:
     epochs = 160
-    batch_size = 8
+    batch_size = 12
     batch_cumulate = 8
     learning_rate_decay_epochs = 10
     learning_rate_decay_step = 9500
@@ -13,7 +13,7 @@ class Config:
     save_frequency = 1
     save_model_dir = "saved_model/"
     load_weights_before_training = True
-    load_weights_from_epoch = 29
+    load_weights_from_epoch = 68
 
     # test image
     test_single_image_dir = "./test_pictures/street.jpg"
@@ -107,7 +107,7 @@ class Config:
     joint_weight = 1.0 
     joint_loc_weight = 1.0
 
-    score_threshold = 0.2
+    score_threshold = 0.15
     joint_threshold = 0.1
     
     skeleton = [[0, 1], [1, 3], [5, 7], [7,  9], [11, 13], [13, 15],

@@ -89,20 +89,26 @@ def Res50FPN_reID(plot_model=True):
     wh = tf.keras.layers.ReLU(name='wh_relu')(wh)
     wh = tf.keras.layers.Conv2D(filters=Config.heads["wh"], kernel_size=(1, 1), strides=1, padding="valid", name='wh_conv2')(wh)
 
-    tid_embed = tf.keras.layers.Conv2D(filters=Config.head_conv["mobilenetv2"], kernel_size=(3, 3), strides=1, padding="same", use_bias=False, name='tid_conv1')(p2_output)
-    tid_embed = tf.keras.layers.BatchNormalization(name='tid_bn')(tid_embed)
-    tid_embed = tf.keras.layers.ReLU(name='tid_relu')(tid_embed)
+    # tid_embed = tf.keras.layers.Conv2D(filters=Config.head_conv["mobilenetv2"], kernel_size=(3, 3), strides=1, padding="same", use_bias=False, name='tid_conv1')(p2_output)
+    # tid_embed = tf.keras.layers.BatchNormalization(name='tid_bn')(tid_embed)
+    # tid_embed = tf.keras.layers.ReLU(name='tid_relu')(tid_embed)
+
+    # idx = tf.cast(inputs, dtype=tf.int32)
+    # tid = tf.keras.layers.Reshape(target_shape=(tid_embed.shape[1]*tid_embed.shape[2], tid_embed.shape[-1]))(tid_embed)
+    # tid = tf.gather(params=tid, indices=idx, batch_dims=1)
+    # tid = tf.expand_dims(tid, axis=2)   
+    # tid = tf.keras.layers.Conv2D(filters=Config.heads["tid"], kernel_size=(1, 1), strides=1, padding="valid", name='tid_conv2')(tid)
+    # tid = tf.keras.layers.Softmax()(tid)
+
+    tid_embed = tf.keras.layers.Conv2D(filters=512, kernel_size=(3, 3), strides=1, padding="same", use_bias=False, name='tid_conv1_512')(p2_output)
+    tid_embed = tf.keras.layers.BatchNormalization(name='tid_bn_512')(tid_embed)
+    tid_embed = tf.keras.layers.ReLU(name='tid_relu_512')(tid_embed)
     
     idx = tf.cast(inputs, dtype=tf.int32)
-    # print(tid_embed.shape)
     tid = tf.keras.layers.Reshape(target_shape=(tid_embed.shape[1]*tid_embed.shape[2], tid_embed.shape[-1]))(tid_embed)
-    # print(tid.shape)
     tid = tf.gather(params=tid, indices=idx, batch_dims=1)
-    # print(tid.shape)
-    tid = tf.expand_dims(tid, axis=2)
-    # print(tid.shape)    
-    tid = tf.keras.layers.Conv2D(filters=Config.heads["tid"], kernel_size=(1, 1), strides=1, padding="valid", name='tid_conv2')(tid)
-    # print(tid.shape)
+    tid = tf.expand_dims(tid, axis=2)   
+    tid = tf.keras.layers.Conv2D(filters=Config.heads["tid"], kernel_size=(1, 1), strides=1, padding="valid", name='tid_conv2_512')(tid)
     tid = tf.keras.layers.Softmax()(tid)
     
     outputs = tf.keras.layers.concatenate(inputs=[heatmap, reg, wh, tid_embed], axis=-1)
@@ -114,9 +120,31 @@ def Res50FPN_reID(plot_model=True):
         print('Plot model *****************')
     return model
 
+def MaxBatchSize(model):
+    ram = 0
+    for idx, layer in enumerate(model.layers[1:]):
+        if 'conv' in layer.name or 'batch' in layer.name:
+            ram += layer.output_shape[1]*layer.output_shape[2]*layer.output_shape[3]
+
+    t_v = 0
+    for var in model.trainable_variables:
+        base = 1
+        for s in var.numpy().shape:
+            base *= s
+        t_v += base
+    
+    nt_v = 0
+    for var in model.non_trainable_variables:
+        base = 1
+        for s in var.numpy().shape:
+            base *= s
+        nt_v += base
+    max_batch_size = 12053 / ((t_v*4 + nt_v + ram)*4 /1000 / 1000) 
+    return max_batch_size
+
 if __name__ == '__main__':
     model = Res50FPN_reID()
     pre = model([np.ones((Config.batch_size, Config.get_image_size()[0], Config.get_image_size()[1], Config.image_channels)), 
                  np.ones((Config.batch_size, Config.max_boxes_per_image, 2))], True)
-
+    print('Max Batch Size : {:.3f}'.format(MaxBatchSize(model)))
     

@@ -80,11 +80,11 @@ if __name__ == '__main__':
     cap.set(cv2.CAP_PROP_POS_FRAMES, half_point)
     
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter('bbox_joint_01.avi', fourcc, 20.0, (1492,  540))
+    out = cv2.VideoWriter('bbox_joint_01.avi', fourcc, 20.0, (2000,  540))
     
-    embed_0 = np.zeros((540,256), dtype=np.float32)
-    embed_1 = np.zeros((540,256), dtype=np.float32)
-    inter = (np.ones((540,20,3))*(0,128,128)).astype(np.uint8)
+    embed_0 = np.zeros((540,512), dtype=np.float32)
+    embed_1 = np.zeros((540,512), dtype=np.float32)
+    inter = (np.ones((540,16,3))*(0,128,128)).astype(np.uint8)
     count = 0          
     xy0 = np.zeros((1,2))
     xy1 = np.zeros((1,2))
@@ -185,10 +185,10 @@ if __name__ == '__main__':
     diff_11 = []
     # for i in range(2, embed_0.shape[0]):
     for i in range(2, 419):
-        diff_00.append(np.sqrt(np.sum((embed_0[i, :] - embed_0[i-1, :])**2))/256)
-        diff_01.append(np.sqrt(np.sum((embed_0[i, :] - embed_1[i-1, :])**2))/256)
-        diff_10.append(np.sqrt(np.sum((embed_1[i, :] - embed_0[i-1, :])**2))/256)
-        diff_11.append(np.sqrt(np.sum((embed_1[i, :] - embed_1[i-1, :])**2))/256)
+        diff_00.append(np.sqrt(np.sum((embed_0[i, :] - embed_0[i-1, :])**2))/embed_0.shape[1])
+        diff_01.append(np.sqrt(np.sum((embed_0[i, :] - embed_1[i-1, :])**2))/embed_0.shape[1])
+        diff_10.append(np.sqrt(np.sum((embed_1[i, :] - embed_0[i-1, :])**2))/embed_0.shape[1])
+        diff_11.append(np.sqrt(np.sum((embed_1[i, :] - embed_1[i-1, :])**2))/embed_0.shape[1])
         
     diff_00 = np.array(diff_00)
     diff_01 = np.array(diff_01)
@@ -201,7 +201,6 @@ if __name__ == '__main__':
     plt.plot(x, diff_10, marker="o")
     plt.xlabel("Time Frame")
     plt.ylabel("Difference")
-    # plt.title("CDF for discrete distribution")
     plt.legend()
     plt.show()
 
@@ -210,7 +209,6 @@ if __name__ == '__main__':
     plt.plot(x, diff_11, marker="o")
     plt.xlabel("Time Frame")
     plt.ylabel("Difference")
-    # plt.title("CDF for discrete distribution")
     plt.legend()
     plt.show()
 

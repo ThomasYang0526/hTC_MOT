@@ -57,7 +57,7 @@ class PostProcessing:
         scores = detections[0][:, 4]
         clses = detections[0][:, 5]
         tids = detections[0][:, 6]
-        embeds = detections[0][:, 6:6+256]
+        embeds = detections[0][:, 6:6+512]
         return bboxes, scores, clses, tids, embeds
 
 
@@ -70,7 +70,7 @@ class Decoder:
         self.score_threshold = Config.score_threshold
 
     def __call__(self, pred, *args, **kwargs):
-        heatmap, reg, wh, embed = tf.split(value=pred[0], num_or_size_splits=[Config.num_classes, 2, 2, 256], axis=-1)
+        heatmap, reg, wh, embed = tf.split(value=pred[0], num_or_size_splits=[Config.num_classes, 2, 2, 512], axis=-1)
         batch_size = heatmap.shape[0]
         heatmap = Decoder.__nms(heatmap)        
         scores, inds, clses, ys, xs = Decoder.__topK(scores=heatmap, K=self.K)
@@ -101,7 +101,7 @@ class Decoder:
 
 
     def __map_to_original(self, detections):
-        bboxes, scores, clses, tid, embed = tf.split(value=detections, num_or_size_splits=[4, 1, 1, 1, 256], axis=2)
+        bboxes, scores, clses, tid, embed = tf.split(value=detections, num_or_size_splits=[4, 1, 1, 1, 512], axis=2)
         bboxes, scores, clses, tid, embed = bboxes.numpy()[0], scores.numpy()[0], clses.numpy()[0], tid.numpy()[0], embed.numpy()[0]
         resize_ratio = self.original_image_size / self.input_image_size
         bboxes[:, 0::2] = bboxes[:, 0::2] * self.downsampling_ratio * resize_ratio[1]
@@ -113,7 +113,7 @@ class Decoder:
                                              Decoder.__numpy_mask(scores, score_mask), 
                                              Decoder.__numpy_mask(clses, score_mask), 
                                              Decoder.__numpy_mask(tid, score_mask),
-                                             Decoder.__numpy_mask(embed, np.tile(score_mask, (1, 256))),]
+                                             Decoder.__numpy_mask(embed, np.tile(score_mask, (1, 512))),]
         detections = np.concatenate([bboxes, scores, clses, tid, embed], axis=-1)
         return detections
 
